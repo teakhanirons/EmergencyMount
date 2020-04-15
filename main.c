@@ -87,7 +87,7 @@ void clearScreen() {
 	blit_stringf(320, select * 20, "<");
 	blit_stringf(20, 1 * 20, "Mount SD2Vita");
 	blit_stringf(20, 2 * 20, "Mount Memory Card");
-	blit_stringf(20, 3 * 20, "Mount PSVSD");
+	blit_stringf(20, 3 * 20, "Mount PSVSD/USB");
 	blit_stringf(20, 4 * 20, "Mount ur0:");
 	blit_stringf(20, 5 * 20, "Exit");
 }
@@ -232,7 +232,7 @@ int module_start(SceSize argc, const void *args) {
       					StartUsb();
 					}
 					ksceDebugPrintf("---\n");
-				} else if(select == 3) { // psvsd
+				} else if(select == 3) { // psvsd/usb
 					if (checkFileExist("sdstor0:uma-pp-act-a")) {
       					path = "sdstor0:uma-pp-act-a";
       					StopUsb();
