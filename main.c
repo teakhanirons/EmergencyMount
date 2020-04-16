@@ -11,6 +11,7 @@
 #include <psp2kern/io/fcntl.h> 
 #include <psp2kern/io/dirent.h> 
 #include <psp2kern/udcd.h>
+#include <psp2kern/kernel/cpu.h> 
 #include <psp2kern/kernel/sysmem.h> 
 #include <psp2kern/kernel/modulemgr.h> 
 #include <psp2kern/kernel/threadmgr.h> 
@@ -48,6 +49,19 @@ int (*activate)(SceUsbstorVstorType type);
 int (*stop)(void);
 int (*mtpstart)(int flags);
 
+int em_iofix(void *func) { // can't access sdstor0: without a thread, this is a workaround
+	int state, ret, res, uid = 0;
+	ENTER_SYSCALL(state);
+	ret = uid = ksceKernelCreateThread("em_iofix", func, 64, 0x10000, 0, 0, 0);
+	if (ret < 0){ ret = -1; goto exit;}
+	if ((ret = ksceKernelStartThread(uid, 0, NULL)) < 0) { ret = -1; goto exit;}
+	if ((ret = ksceKernelWaitThreadEnd(uid, &res, NULL)) < 0) { ret = -1; goto exit;}
+	ret = res;
+exit:
+	if (uid > 0) ksceKernelDeleteThread(uid);
+	EXIT_SYSCALL(state);
+	return ret;
+}
 
 static SceUID ksceIoOpenPatched(const char *file, int flags, SceMode mode) {
   first = 1;
@@ -90,27 +104,27 @@ void drawScreen() {
 }
 
 void StartUsb() {
-	if(!path) {
-		ksceDebugPrintf("path is null\n");
-		return;
-	}
+	if(active == 0) {
+	 	if(!path) {
+			ksceDebugPrintf("path is null\n");
+			return;
+		}
   // Remove image path limitation
-  char zero[0x6E];
-  memset(zero, 0, 0x6E);
-  hooks[0] = taiInjectDataForKernel(KERNEL_PID, vstorinfo.modid, 0, 0x1738, zero, 0x6E);
+  	char zero[0x6E];
+ 	memset(zero, 0, 0x6E);
+  	hooks[0] = taiInjectDataForKernel(KERNEL_PID, vstorinfo.modid, 0, 0x1738, zero, 0x6E);
 
   // Add patches to support exFAT
-  hooks[1] = taiHookFunctionImportForKernel(KERNEL_PID, &ksceIoOpenRef, "SceUsbstorVStorDriver", 0x40FD29C7, 0x75192972, ksceIoOpenPatched);
-  hooks[2] = taiHookFunctionImportForKernel(KERNEL_PID, &ksceIoReadRef, "SceUsbstorVStorDriver", 0x40FD29C7, 0xE17EFC03, ksceIoReadPatched);
-  ksceDebugPrintf("exfat and image path limit patches = %x %x %x\n", hooks[0], hooks[1], hooks[2]);
+  	hooks[1] = taiHookFunctionImportForKernel(KERNEL_PID, &ksceIoOpenRef, "SceUsbstorVStorDriver", 0x40FD29C7, 0x75192972, ksceIoOpenPatched);
+  	hooks[2] = taiHookFunctionImportForKernel(KERNEL_PID, &ksceIoReadRef, "SceUsbstorVStorDriver", 0x40FD29C7, 0xE17EFC03, ksceIoReadPatched);
+  	ksceDebugPrintf("exfat and image path limit patches = %x %x %x\n", hooks[0], hooks[1], hooks[2]);
 
-  if(ksceUdcdStopCurrentInternal(2) == 0) ksceDebugPrintf("cleared USB bus 2\n");
-  if(setname("\"PS Vita\" MC", "1.00") == 0) ksceDebugPrintf("name set\n");
-  if(setpath(path) == 0) ksceDebugPrintf("path set\n");
-  	if(active == 0) {
+  	if(ksceUdcdStopCurrentInternal(2) == 0) { ksceDebugPrintf("cleared USB bus 2\n"); }
+  	if(setname("\"PS Vita\" MC", "1.00") == 0) { ksceDebugPrintf("name set\n"); }
+  	if(setpath(path) == 0) { ksceDebugPrintf("path set\n"); }
 		active = 1;
 		if(activate(SCE_USBSTOR_VSTOR_TYPE_FAT) == 0) { ksceDebugPrintf("activated mount\n"); }
-	}
+	} else { ksceDebugPrintf("already activated\n"); }
 }
 
 void StopUsb() {
@@ -118,35 +132,22 @@ void StopUsb() {
 		active = 0;
 		if(stop() == 0) ksceDebugPrintf("stopped mount\n");
 		if(mtpstart(1) == 0) ksceDebugPrintf("restarted MTP\n");
-	}
+	} else { ksceDebugPrintf("already stopped\n"); }
   	if (hooks[2] >= 0) { taiHookReleaseForKernel(hooks[2], ksceIoReadRef); }
 	if (hooks[1] >= 0) { taiHookReleaseForKernel(hooks[1], ksceIoOpenRef); }
   	if (hooks[0] >= 0) { taiInjectReleaseForKernel(hooks[0]); }
 }
 
-int checkFileExist(const char *file) {
-  int fd = ksceIoOpen(file, SCE_O_RDONLY, 0777);
+int pathCheck() {
+  int fd = ksceIoOpen(path, SCE_O_RDONLY, 0777);
   if (fd < 0) {
-  ksceDebugPrintf("%s doesn't exist\n", file);
-  ksceDebugPrintf("fd = %d\n", fd);
+  	ksceDebugPrintf("%s doesn't exist\n", path);
+  	path = NULL;
     return 0;
   }
 
   ksceIoClose(fd);
-  ksceDebugPrintf("%s exists\n", file);
-  return 1;
-}
-
-int checkFolderExist(const char *folder) {
-  int dfd = ksceIoDopen(folder);
-  if (dfd < 0) {
-  ksceDebugPrintf("%s doesn't exist\n", folder);
-  ksceDebugPrintf("fd = %d\n", dfd);
-    return 0;
-  }
-
-  ksceIoDclose(dfd);
-  ksceDebugPrintf("%s exists\n", folder);
+  ksceDebugPrintf("%s exists\n", path);
   return 1;
 }
 
@@ -213,25 +214,25 @@ int module_start(SceSize argc, const void *args) {
 			} else if(ctrl_press.buttons == SCE_CTRL_CROSS || ctrl_press.buttons == SCE_CTRL_CIRCLE){
 				ksceDebugPrintf("select = %d\n", select);
 				if(select == 1) { //sd2vita
-					if (checkFileExist("sdstor0:gcd-lp-ign-entire")) { path = "sdstor0:gcd-lp-ign-entire"; }
-					else { continue; }
+					path = "sdstor0:gcd-lp-ign-entire";
+					if (em_iofix(pathCheck) == 0) { continue; }
 				} else if(select == 2) { // sony mc
-					if (checkFileExist("sdstor0:xmc-lp-ign-userext")) { path = "sdstor0:xmc-lp-ign-userext"; } 
-					else if (checkFileExist("sdstor0:int-lp-ign-userext")) { path = "sdstor0:int-lp-ign-userext"; }
-					else { continue; }
+					path = "sdstor0:xmc-lp-ign-userext";
+					if(em_iofix(pathCheck) == 0) { path = "sdstor0:int-lp-ign-userext"; }
+					if(em_iofix(pathCheck) == 0) { continue; }
 				} else if(select == 3) { // psvsd / usb
-					if (checkFileExist("sdstor0:uma-pp-act-a")) { path = "sdstor0:uma-pp-act-a"; }
-					else if (checkFileExist("sdstor0:uma-lp-act-entire")) { path = "sdstor0:uma-lp-act-entire"; }
-					else { continue; }
+					path = "sdstor0:uma-pp-act-a";
+					if(em_iofix(pathCheck) == 0) { path = "sdstor0:uma-lp-act-entire"; } 
+					if(em_iofix(pathCheck) == 0) { continue; }
 				} else if(select == 4) { // ur0
 					// path = uma
 				} else if(select == 5) { // exit
-					StopUsb();
+					em_iofix(StopUsb);
 					ksceDebugPrintf("---\n");
 					break;
 				}
-				StopUsb();
-      			StartUsb();
+				em_iofix(StopUsb);
+      			em_iofix(StartUsb);
 				ksceDebugPrintf("---\n");
 			}
 	};
