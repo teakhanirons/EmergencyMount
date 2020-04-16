@@ -29,7 +29,7 @@ SceCtrlData ctrl_peek, ctrl_press;
 
 void *fb_addr = NULL;
 char *path = NULL;
-char menu[6][20] = {"Mount SD2Vita", "Mount Memory Card", "Mount PSVSD / USB", "Mount ur0:", "Exit", "CBPS"};
+char menu[5][20] = {"Mount SD2Vita", "Mount Memory Card", "Mount PSVSD / USB", "Mount ur0:", "Exit"};
 int menusize;
 static int first = 1;
 int select = 1;
@@ -202,11 +202,8 @@ int triaCheck() {
 void _start() __attribute__ ((weak, alias ("module_start")));
 int module_start(SceSize argc, const void *args) {
 	ksceDebugPrintf("\nEmergencyMount by Team CBPS\n----------\n");
-	if(triaCheck() == 0) return SCE_KERNEL_START_SUCCESS;
-	for(int i = 0; i < 100; i++) {
-		if(menu[i] != menu[5]) { menusize = menusize + 1; }
-		else { break; }
-	}
+	//if(triaCheck() == 0) return SCE_KERNEL_START_SUCCESS;
+	menusize = sizeof(menu) / sizeof(menu[0]);
 	ksceDebugPrintf("menu size: %d\n", menusize);
   	vstorinfo.size = sizeof(tai_module_info_t);
   	mtpinfo.size = sizeof(tai_module_info_t);
