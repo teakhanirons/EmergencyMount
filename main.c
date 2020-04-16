@@ -49,17 +49,25 @@ int (*activate)(SceUsbstorVstorType type);
 int (*stop)(void);
 int (*mtpstart)(int flags);
 
-int em_iofix(void *func) { // can't access sdstor0: without a thread, this is a workaround
-	int state, ret, res, uid = 0;
+int em_iofix(void *func) {
+	int ret, state = 0;
+
 	ENTER_SYSCALL(state);
+	ret = em_iofix_threader(func);
+	EXIT_SYSCALL(state);
+
+	return ret;
+}
+
+int em_iofix_threader(void *func) { // can't access sdstor0: without a thread, this is a workaround
+	int ret, res, uid = 0;
 	ret = uid = ksceKernelCreateThread("em_iofix", func, 64, 0x10000, 0, 0, 0);
 	if (ret < 0){ ret = -1; goto exit;}
 	if ((ret = ksceKernelStartThread(uid, 0, NULL)) < 0) { ret = -1; goto exit;}
 	if ((ret = ksceKernelWaitThreadEnd(uid, &res, NULL)) < 0) { ret = -1; goto exit;}
 	ret = res;
 exit:
-	if (uid > 0) ksceKernelDeleteThread(uid);
-	EXIT_SYSCALL(state);
+	if (uid > 0) { ksceKernelDeleteThread(uid); }
 	return ret;
 }
 
@@ -130,8 +138,8 @@ void StartUsb() {
 void StopUsb() {
 	if(active == 1) {
 		active = 0;
-		if(stop() == 0) ksceDebugPrintf("stopped mount\n");
-		if(mtpstart(1) == 0) ksceDebugPrintf("restarted MTP\n");
+		if(em_iofix(stop) == 0) { ksceDebugPrintf("stopped mount\n"); }
+		if(em_iofix(mtpstart(1)) == 0) { ksceDebugPrintf("restarted MTP\n"); }
 	} else { ksceDebugPrintf("already stopped\n"); }
   	if (hooks[2] >= 0) { taiHookReleaseForKernel(hooks[2], ksceIoReadRef); }
 	if (hooks[1] >= 0) { taiHookReleaseForKernel(hooks[1], ksceIoOpenRef); }
