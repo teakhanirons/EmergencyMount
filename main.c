@@ -12,6 +12,7 @@
 #include <psp2kern/io/fcntl.h> 
 #include <psp2kern/io/dirent.h> 
 #include <psp2kern/udcd.h>
+#include <psp2kern/sblaimgr.h> 
 #include <psp2kern/kernel/cpu.h> 
 #include <psp2kern/kernel/sysmem.h> 
 #include <psp2kern/kernel/modulemgr.h> 
@@ -35,6 +36,7 @@ int menusize;
 static int first = 1;
 int select = 1;
 int active = 0;
+int PSTV = 0;
 
 #define ALIGN(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
 
@@ -130,8 +132,13 @@ void drawScreen() {
 			((unsigned int *)fb_addr)[j + i * SCREEN_PITCH] = 0xFF000000;
 		}
 	}
-	blit_stringf(320, select * 20, "<");
-	for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20), menu[i]); }
+	if(PSTV) { 
+		blit_stringf(20, 20, "EmergencyMount is only for PS Vita systems.");
+		blit_stringf(20, 40, "Exiting now.");
+	} else {
+		blit_stringf(320, select * 20, "<");
+		for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20), menu[i]); }
+	}
 }
 
 void StartUsb() {
@@ -203,7 +210,8 @@ int module_start(SceSize argc, const void *args) {
 	ksceDebugPrintf("\nEmergencyMount by Team CBPS\n----------\n");
 
 	if(triaCheck() == 0) return SCE_KERNEL_START_SUCCESS;
-
+	PSTV = ksceSblAimgrIsGenuineDolce();
+if(!PSTV) {
 	menusize = sizeof(menu) / sizeof(menu[0]);
 	ksceDebugPrintf("menu size: %d\n", menusize);
 
@@ -230,7 +238,7 @@ int module_start(SceSize argc, const void *args) {
 
   	ksceDebugPrintf("vstor hooks returns: %x %x %x %x\n", rname, rpath, racti, rstop);
   	ksceDebugPrintf("mtp hook returns: %x\n", rmtps);
-
+}
 	unsigned int fb_size = ALIGN(4 * SCREEN_PITCH * SCREEN_H, 256 * 1024);
 
 	fb_uid = ksceKernelAllocMemBlock("fb", 0x40404006 , fb_size, NULL);
@@ -252,8 +260,7 @@ int module_start(SceSize argc, const void *args) {
 	blit_set_color(0x00FFFFFF, 0xFF000000);
 	drawScreen();
 
-	
-	while(1) {
+	while(!PSTV) {
 		ctrl_press = ctrl_peek;
 		ksceCtrlPeekBufferPositive(0, &ctrl_peek, 1);
 		ctrl_press.buttons = ctrl_peek.buttons & ~ctrl_press.buttons;
