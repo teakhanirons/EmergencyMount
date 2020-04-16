@@ -17,12 +17,15 @@
 #include <psp2kern/kernel/threadmgr.h> 
 
 tai_module_info_t vstorinfo;
+tai_module_info_t mtpinfo;
 
 static SceUID fb_uid = -1;
 static SceUID hooks[3];
 
 static tai_hook_ref_t ksceIoOpenRef;
 static tai_hook_ref_t ksceIoReadRef;
+
+SceCtrlData ctrl_peek, ctrl_press;
 
 void *fb_addr = NULL;
 char *path = NULL;
@@ -182,29 +185,52 @@ int pathCheck() {
   return 1;
 }
 
+int triaCheck() {
+	SceCtrlData ctrl;
+	ksceCtrlPeekBufferPositive(0, &ctrl, 1);
+	ksceDebugPrintf("buttons held: 0x%08X\n", ctrl.buttons);
+	if(ctrl.buttons == SCE_CTRL_TRIANGLE) {
+		ksceDebugPrintf("WELCOME TO CHAOS WORLD!\n");
+		return 1;
+	} else {
+		ksceDebugPrintf("triangle not held, exiting\n");
+		return 0;
+	}
+
+}
+
 void _start() __attribute__ ((weak, alias ("module_start")));
 int module_start(SceSize argc, const void *args) {
-
+	ksceDebugPrintf("\nEmergencyMount by Team CBPS\n----------\n");
+	if(triaCheck() == 0) return SCE_KERNEL_START_SUCCESS;
 	for(int i = 0; i < 100; i++) {
 		if(menu[i] != menu[5]) { menusize = menusize + 1; }
 		else { break; }
 	}
 	ksceDebugPrintf("menu size: %d\n", menusize);
   	vstorinfo.size = sizeof(tai_module_info_t);
+  	mtpinfo.size = sizeof(tai_module_info_t);
 
   if(taiGetModuleInfoForKernel(KERNEL_PID, "SceUsbstorVStorDriver", &vstorinfo) < 0) {
   	ksceDebugPrintf("vstor not loaded\n");
   	return SCE_KERNEL_START_SUCCESS;
   }
-  	ksceDebugPrintf("vstor loaded\n");
-  	int rname = module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x14455C20, &setname);
-  	int rpath = module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x8C9F93AB, &setpath);
-  	int racti = module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0xB606F1AF, &activate);
-  	int rstop = module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x0FD67059, &stop);
-  	int rmtps = module_get_export_func(KERNEL_PID, "SceMtpIfDriver", 0x5EFA4138, 0xC5327CAC, &mtpstart);
+  ksceDebugPrintf("vstor loaded\n");
 
-  	ksceDebugPrintf("vstor hooks returns: %d %d %d %d\n", rname, rpath, racti, rstop);
-  	ksceDebugPrintf("mtp hook returns: %d\n", rmtps);
+  if(taiGetModuleInfoForKernel(KERNEL_PID, "SceMtpIfDriver", &mtpinfo) < 0) {
+  	ksceDebugPrintf("mtp not loaded\n");
+  	return SCE_KERNEL_START_SUCCESS;
+  }
+  ksceDebugPrintf("mtp loaded\n");
+  	
+  	int rname = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x16b8 | 1, &setname);
+  	int rpath = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x16d8 | 1, &setpath);
+  	int racti = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x1710 | 1, &activate);
+  	int rstop = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x1858 | 1, &stop);
+  	int rmtps = module_get_offset(KERNEL_PID, mtpinfo.modid, 0, 0x6cc | 1, &mtpstart);
+
+  	ksceDebugPrintf("vstor hooks returns: %x %x %x %x\n", rname, rpath, racti, rstop);
+  	ksceDebugPrintf("mtp hook returns: %x\n", rmtps);
 
 	unsigned int fb_size = ALIGN(4 * SCREEN_PITCH * SCREEN_H, 256 * 1024);
 
@@ -227,7 +253,7 @@ int module_start(SceSize argc, const void *args) {
 	blit_set_color(0x00FFFFFF, 0xFF000000);
 	drawScreen();
 
-	SceCtrlData ctrl_peek, ctrl_press;
+	
 	while(1) {
 		ctrl_press = ctrl_peek;
 		ksceCtrlPeekBufferPositive(0, &ctrl_peek, 1);
@@ -272,7 +298,12 @@ int module_start(SceSize argc, const void *args) {
 						}
 					} 
 				} else if(select == 4) { // ur0
-					// path = uma
+					path = "sdstor0:int-lp-ign-user";
+					if(em_iofix(pathCheck) == 0) { 
+						path = NULL;
+						ksceDebugPrintf("---\n");
+						continue; 
+						}
 				} else if(select == 5) { // exit
 					StopUsb();
 					ksceDebugPrintf("---\n");
