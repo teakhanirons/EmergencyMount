@@ -15,10 +15,20 @@
 #include <psp2kern/kernel/modulemgr.h> 
 #include <psp2kern/kernel/threadmgr.h> 
 
+tai_module_info_t vstorinfo;
+
 static SceUID fb_uid = -1;
+static SceUID hooks[3];
+
+static tai_hook_ref_t ksceIoOpenRef;
+static tai_hook_ref_t ksceIoReadRef;
+
 void *fb_addr = NULL;
-int select = 1;
 char *path = NULL;
+char menu[6][20] = {"Mount SD2Vita", "Mount Memory Card", "Mount PSVSD / USB", "Mount ur0:", "Exit", "CBPS"};
+int menusize;
+static int first = 1;
+int select = 1;
 int active = 0;
 
 #define ALIGN(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
@@ -32,15 +42,6 @@ typedef enum SceUsbstorVstorType {
 	SCE_USBSTOR_VSTOR_TYPE_CDROM   = 5
 } SceUsbstorVstorType;
 
-
-static tai_hook_ref_t ksceIoOpenRef;
-static tai_hook_ref_t ksceIoReadRef;
-
-static SceUID hooks[3];
-
-tai_module_info_t vstorinfo;
-
-static int first = 1;
 int (*setname)(const char *name, const char *version);
 int (*setpath)(const char *path);
 int (*activate)(SceUsbstorVstorType type);
@@ -78,18 +79,14 @@ static int ksceIoReadPatched(SceUID fd, void *data, SceSize size) {
   return res;
 }
 
-void clearScreen() {
+void drawScreen() {
 	for (int i = 0; i < 544; i++) {
 		for (int j = 0; j < 960; j++) {
 			((unsigned int *)fb_addr)[j + i * SCREEN_PITCH] = 0xFF000000;
 		}
 	}
 	blit_stringf(320, select * 20, "<");
-	blit_stringf(20, 1 * 20, "Mount SD2Vita");
-	blit_stringf(20, 2 * 20, "Mount Memory Card");
-	blit_stringf(20, 3 * 20, "Mount PSVSD/USB");
-	blit_stringf(20, 4 * 20, "Mount ur0:");
-	blit_stringf(20, 5 * 20, "Exit");
+	for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20), menu[i]); }
 }
 
 void StartUsb() {
@@ -112,7 +109,7 @@ void StartUsb() {
   if(setpath(path) == 0) ksceDebugPrintf("path set\n");
   	if(active == 0) {
 		active = 1;
-		if(activate(SCE_USBSTOR_VSTOR_TYPE_FAT) == 0) ksceDebugPrintf("activated mount\n");
+		if(activate(SCE_USBSTOR_VSTOR_TYPE_FAT) == 0) { ksceDebugPrintf("activated mount\n"); }
 	}
 }
 
@@ -122,15 +119,9 @@ void StopUsb() {
 		if(stop() == 0) ksceDebugPrintf("stopped mount\n");
 		if(mtpstart(1) == 0) ksceDebugPrintf("restarted MTP\n");
 	}
-  	if (hooks[2] >= 0) {
-    	taiHookReleaseForKernel(hooks[2], ksceIoReadRef);
-	}
-	if (hooks[1] >= 0) {
-    	taiHookReleaseForKernel(hooks[1], ksceIoOpenRef);
-	}
-  	if (hooks[0] >= 0) {
-    	taiInjectReleaseForKernel(hooks[0]);
-	}
+  	if (hooks[2] >= 0) { taiHookReleaseForKernel(hooks[2], ksceIoReadRef); }
+	if (hooks[1] >= 0) { taiHookReleaseForKernel(hooks[1], ksceIoOpenRef); }
+  	if (hooks[0] >= 0) { taiInjectReleaseForKernel(hooks[0]); }
 }
 
 int checkFileExist(const char *file) {
@@ -139,7 +130,7 @@ int checkFileExist(const char *file) {
   ksceDebugPrintf("%s doesn't exist\n", file);
   ksceDebugPrintf("fd = %d\n", fd);
     return 0;
-	}
+  }
 
   ksceIoClose(fd);
   ksceDebugPrintf("%s exists\n", file);
@@ -152,7 +143,7 @@ int checkFolderExist(const char *folder) {
   ksceDebugPrintf("%s doesn't exist\n", folder);
   ksceDebugPrintf("fd = %d\n", dfd);
     return 0;
-	}
+  }
 
   ksceIoDclose(dfd);
   ksceDebugPrintf("%s exists\n", folder);
@@ -162,28 +153,34 @@ int checkFolderExist(const char *folder) {
 void _start() __attribute__ ((weak, alias ("module_start")));
 int module_start(SceSize argc, const void *args) {
 
-  vstorinfo.size = sizeof(tai_module_info_t);
+	for(int i = 0; i < 100; i++) {
+		if(menu[i] != menu[5]) { menusize = menusize + 1; }
+		else { break; }
+	}
+	ksceDebugPrintf("menu size: %d\n", menusize);
+  	vstorinfo.size = sizeof(tai_module_info_t);
 
   if(taiGetModuleInfoForKernel(KERNEL_PID, "SceUsbstorVStorDriver", &vstorinfo) < 0) {
   	ksceDebugPrintf("vstor not loaded\n");
   	return SCE_KERNEL_START_SUCCESS;
-  } else {
+  }
   	ksceDebugPrintf("vstor loaded\n");
   	module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x14455C20, &setname);
   	module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x8C9F93AB, &setpath);
   	module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0xB606F1AF, &activate);
   	module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x0FD67059, &stop);
-  }
   	module_get_export_func(KERNEL_PID, "SceMtpIfDriver", 0x5EFA4138, 0xC5327CAC, &mtpstart);
+
   	ksceDebugPrintf("vstor hooks: %x %x %x %x\n", &setname, &setpath, &activate, &stop);
   	ksceDebugPrintf("mtp hook: %x\n", &mtpstart);
+
 	unsigned int fb_size = ALIGN(4 * SCREEN_PITCH * SCREEN_H, 256 * 1024);
 
 	fb_uid = ksceKernelAllocMemBlock("fb", 0x40404006 , fb_size, NULL);
 
 	ksceKernelGetMemBlockBase(fb_uid, &fb_addr);
 
-	clearScreen();
+	drawScreen();
 
 	SceDisplayFrameBuf fb;
 	fb.size        = sizeof(fb);
@@ -196,64 +193,47 @@ int module_start(SceSize argc, const void *args) {
 	ksceDisplaySetFrameBuf(&fb, 1);
 	blit_set_frame_buf(&fb);
 	blit_set_color(0x00FFFFFF, 0xFF000000);
-	clearScreen();
+	drawScreen();
 
 	SceCtrlData ctrl_peek, ctrl_press;
 	while(1) {
 		ctrl_press = ctrl_peek;
 		ksceCtrlPeekBufferPositive(0, &ctrl_peek, 1);
 		ctrl_press.buttons = ctrl_peek.buttons & ~ctrl_press.buttons;
-
 			if(ctrl_press.buttons == SCE_CTRL_UP) {
 				select = select - 1;
-				if(select < 1) { select = 5; }
-				clearScreen();
+				if(select < 1) { select = menusize; }
+				ksceDebugPrintf("select = %d\n", select);
+				drawScreen();
 			} else if(ctrl_press.buttons == SCE_CTRL_DOWN){
 				select = select + 1;
-				if(select > 5) { select = 1; }
-				clearScreen();
+				if(select > menusize) { select = 1; }
+				ksceDebugPrintf("select = %d\n", select);
+				drawScreen();
 			} else if(ctrl_press.buttons == SCE_CTRL_CROSS || ctrl_press.buttons == SCE_CTRL_CIRCLE){
 				ksceDebugPrintf("select = %d\n", select);
 				if(select == 1) { //sd2vita
-					if (checkFileExist("sdstor0:gcd-lp-ign-entire")) {
-      					path = "sdstor0:gcd-lp-ign-entire";
-      					StopUsb();
-      					StartUsb();
-					}
-					ksceDebugPrintf("---\n");
+					if (checkFileExist("sdstor0:gcd-lp-ign-entire")) { path = "sdstor0:gcd-lp-ign-entire"; }
+					else { continue; }
 				} else if(select == 2) { // sony mc
-					if (checkFileExist("sdstor0:xmc-lp-ign-userext")) {
-      					path = "sdstor0:xmc-lp-ign-userext";
-					    StopUsb();
-      					StartUsb();
-					} else if (checkFileExist("sdstor0:int-lp-ign-userext")) {
-      					path = "sdstor0:int-lp-ign-userext";
-					    StopUsb();
-      					StartUsb();
-					}
-					ksceDebugPrintf("---\n");
-				} else if(select == 3) { // psvsd/usb
-					if (checkFileExist("sdstor0:uma-pp-act-a")) {
-      					path = "sdstor0:uma-pp-act-a";
-      					StopUsb();
-      					StartUsb();
-					} else if (checkFileExist("sdstor0:uma-lp-act-entire")) {
-     				 	path = "sdstor0:uma-lp-act-entire";
-      					StopUsb();
-      					StartUsb();
-					    }
-					    ksceDebugPrintf("---\n");
+					if (checkFileExist("sdstor0:xmc-lp-ign-userext")) { path = "sdstor0:xmc-lp-ign-userext"; } 
+					else if (checkFileExist("sdstor0:int-lp-ign-userext")) { path = "sdstor0:int-lp-ign-userext"; }
+					else { continue; }
+				} else if(select == 3) { // psvsd / usb
+					if (checkFileExist("sdstor0:uma-pp-act-a")) { path = "sdstor0:uma-pp-act-a"; }
+					else if (checkFileExist("sdstor0:uma-lp-act-entire")) { path = "sdstor0:uma-lp-act-entire"; }
+					else { continue; }
 				} else if(select == 4) { // ur0
-					//StopUsb();
-					//StartUsb();
-					ksceDebugPrintf("---\n");
+					// path = uma
 				} else if(select == 5) { // exit
 					StopUsb();
 					ksceDebugPrintf("---\n");
 					break;
 				}
+				StopUsb();
+      			StartUsb();
+				ksceDebugPrintf("---\n");
 			}
-
 	};
 
 	return SCE_KERNEL_START_SUCCESS;
