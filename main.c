@@ -128,8 +128,8 @@ void StartUsb() {
   	ksceDebugPrintf("exfat and image path limit patches = %x %x %x\n", hooks[0], hooks[1], hooks[2]);
 
   	if(ksceUdcdStopCurrentInternal(2) == 0) { ksceDebugPrintf("cleared USB bus 2\n"); }
-  	if(setname("\"PS Vita\" MC", "1.00") == 0) { ksceDebugPrintf("name set\n"); }
-  	if(setpath(path) == 0) { ksceDebugPrintf("path set\n"); }
+  	if(em_iofix(setname("\"PS Vita\" MC", "1.00")) == 0) { ksceDebugPrintf("name set\n"); }
+  	if(em_iofix(setpath(path)) == 0) { ksceDebugPrintf("path set\n"); }
 		active = 1;
 		if(activate(SCE_USBSTOR_VSTOR_TYPE_FAT) == 0) { ksceDebugPrintf("activated mount\n"); }
 	} else { ksceDebugPrintf("already activated\n"); }
@@ -150,7 +150,6 @@ int pathCheck() {
   int fd = ksceIoOpen(path, SCE_O_RDONLY, 0777);
   if (fd < 0) {
   	ksceDebugPrintf("%s doesn't exist\n", path);
-  	path = NULL;
     return 0;
   }
 
@@ -223,24 +222,40 @@ int module_start(SceSize argc, const void *args) {
 				ksceDebugPrintf("select = %d\n", select);
 				if(select == 1) { //sd2vita
 					path = "sdstor0:gcd-lp-ign-entire";
-					if (em_iofix(pathCheck) == 0) { continue; }
+					if (em_iofix(pathCheck) == 0) {
+						path = NULL;
+						ksceDebugPrintf("---\n");
+						continue; 
+					}
 				} else if(select == 2) { // sony mc
 					path = "sdstor0:xmc-lp-ign-userext";
-					if(em_iofix(pathCheck) == 0) { path = "sdstor0:int-lp-ign-userext"; }
-					if(em_iofix(pathCheck) == 0) { continue; }
+					if(em_iofix(pathCheck) == 0) { 
+						path = "sdstor0:int-lp-ign-userext"; 
+						if(em_iofix(pathCheck) == 0) { 
+							path = NULL;
+							ksceDebugPrintf("---\n");
+							continue; 
+						}
+					}
 				} else if(select == 3) { // psvsd / usb
 					path = "sdstor0:uma-pp-act-a";
-					if(em_iofix(pathCheck) == 0) { path = "sdstor0:uma-lp-act-entire"; } 
-					if(em_iofix(pathCheck) == 0) { continue; }
+					if(em_iofix(pathCheck) == 0) { 
+						path = "sdstor0:uma-lp-act-entire";
+						if(em_iofix(pathCheck) == 0) { 
+							path = NULL;
+							ksceDebugPrintf("---\n");
+							continue; 
+						}
+					} 
 				} else if(select == 4) { // ur0
 					// path = uma
 				} else if(select == 5) { // exit
-					em_iofix(StopUsb);
+					StopUsb();
 					ksceDebugPrintf("---\n");
 					break;
 				}
-				em_iofix(StopUsb);
-      			em_iofix(StartUsb);
+				StopUsb();
+      			StartUsb();
 				ksceDebugPrintf("---\n");
 			}
 	};
