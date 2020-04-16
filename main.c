@@ -311,6 +311,9 @@ int module_start(SceSize argc, const void *args) {
 				ksceDebugPrintf("---\n");
 			}
 	};
+	if (fb_uid) {
+		ksceKernelFreeMemBlock(fb_uid);
+	}
 
 	return SCE_KERNEL_START_SUCCESS;
 }
