@@ -5,6 +5,7 @@
 
 #include "blit/blit.h"
 
+#include <psp2/usbstorvstor.h>
 #include <psp2kern/power.h> 
 #include <psp2kern/ctrl.h> 
 #include <psp2kern/display.h>
@@ -40,11 +41,6 @@ int active = 0;
 #define SCREEN_PITCH 1024
 #define SCREEN_W 960
 #define SCREEN_H 544
-
-typedef enum SceUsbstorVstorType {
-	SCE_USBSTOR_VSTOR_TYPE_FAT     = 0,
-	SCE_USBSTOR_VSTOR_TYPE_CDROM   = 5
-} SceUsbstorVstorType;
 
 int (*setname)(const char *name, const char *version);
 int (*setpath)(const char *path);
@@ -187,9 +183,12 @@ int pathCheck() {
 
 int triaCheck() {
 	SceCtrlData ctrl;
+
 	ksceCtrlPeekBufferPositive(0, &ctrl, 1);
+
 	ksceDebugPrintf("buttons held: 0x%08X\n", ctrl.buttons);
-	if(ctrl.buttons == SCE_CTRL_TRIANGLE) {
+
+	if(ctrl.buttons & SCE_CTRL_TRIANGLE) {
 		ksceDebugPrintf("WELCOME TO CHAOS WORLD!\n");
 		return 1;
 	} else {
@@ -202,9 +201,12 @@ int triaCheck() {
 void _start() __attribute__ ((weak, alias ("module_start")));
 int module_start(SceSize argc, const void *args) {
 	ksceDebugPrintf("\nEmergencyMount by Team CBPS\n----------\n");
-	//if(triaCheck() == 0) return SCE_KERNEL_START_SUCCESS;
+
+	if(triaCheck() == 0) return SCE_KERNEL_START_SUCCESS;
+
 	menusize = sizeof(menu) / sizeof(menu[0]);
 	ksceDebugPrintf("menu size: %d\n", menusize);
+
   	vstorinfo.size = sizeof(tai_module_info_t);
   	mtpinfo.size = sizeof(tai_module_info_t);
 
