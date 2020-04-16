@@ -31,6 +31,7 @@ SceCtrlData ctrl_peek, ctrl_press;
 
 void *fb_addr = NULL;
 char *path = NULL;
+char *folder = NULL;
 char menu[5][20] = {"Mount SD2Vita", "Mount Memory Card", "Mount PSVSD / USB", "Mount ur0:", "Exit"};
 int menusize;
 static int first = 1;
@@ -126,6 +127,30 @@ static int ksceIoReadPatched(SceUID fd, void *data, SceSize size) {
   return res;
 }
 
+int pathCheck() {
+  int fd = ksceIoOpen(path, SCE_O_RDONLY, 0777);
+  if (fd < 0) {
+  	ksceDebugPrintf("%s doesn't exist\n", path);
+    return 0;
+  }
+
+  ksceIoClose(fd);
+  ksceDebugPrintf("%s exists\n", path);
+  return 1;
+}
+
+int FolderCheck() {
+  int dfd = ksceIoDopen(folder);
+  if (dfd < 0) {
+  ksceDebugPrintf("%s doesn't exist\n", folder);
+    return 0;
+  }
+
+  ksceIoDclose(dfd);
+  ksceDebugPrintf("%s exists\n", folder);
+  return 1;
+}
+
 void drawScreen() {
 	for (int i = 0; i < 544; i++) {
 		for (int j = 0; j < 960; j++) {
@@ -139,6 +164,20 @@ void drawScreen() {
 		blit_stringf(320, select * 20, "<");
 		for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20), menu[i]); }
 	}
+}
+
+int remount(int id) {
+	int zero, one, mounter = -1;
+	ksceDebugPrintf("------------\n");
+	zero = ksceIoUmount(id, 0, 0, 0);
+	ksceDebugPrintf("umount 0: %x\n", zero);
+  	one = ksceIoUmount(id, 1, 0, 0);
+  	ksceDebugPrintf("umount 1: %x\n", one);
+  	mounter = ksceIoMount(id, NULL, 0, 0, 0, 0);
+  	ksceDebugPrintf("remounter: %x\n", mounter);
+  	ksceDebugPrintf("Remount, ALL SYSTEMS GO for %x\n", id);
+  	ksceDebugPrintf("------------\n");
+  	return 1;
 }
 
 void StartUsb() {
@@ -174,18 +213,16 @@ void StopUsb() {
   	if (hooks[2] >= 0) { taiHookReleaseForKernel(hooks[2], ksceIoReadRef); }
 	if (hooks[1] >= 0) { taiHookReleaseForKernel(hooks[1], ksceIoOpenRef); }
   	if (hooks[0] >= 0) { taiInjectReleaseForKernel(hooks[0]); }
-}
-
-int pathCheck() {
-  int fd = ksceIoOpen(path, SCE_O_RDONLY, 0777);
-  if (fd < 0) {
-  	ksceDebugPrintf("%s doesn't exist\n", path);
-    return 0;
-  }
-
-  ksceIoClose(fd);
-  ksceDebugPrintf("%s exists\n", path);
-  return 1;
+  	folder = "ux0:";
+  	if (em_iofix(FolderCheck)) { remount(0x800); }
+  	folder = "imc0:";
+  	if (em_iofix(FolderCheck)) { remount(0xD00); }
+  	folder = "xmc0:";
+  	if (em_iofix(FolderCheck)){ remount(0xE00); }
+  	folder = "uma0:";
+  	if (em_iofix(FolderCheck)){ remount(0xF00); }
+  	folder = "ur0:";
+  	if (em_iofix(FolderCheck)){ remount(0x600); }
 }
 
 int triaCheck() {
