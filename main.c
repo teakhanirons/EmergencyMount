@@ -49,6 +49,30 @@ int (*activate)(SceUsbstorVstorType type);
 int (*stop)(void);
 int (*mtpstart)(int flags);
 
+int namesetter() { 
+	int ret = 0;
+	ret = setname("\"PS Vita\" MC", "1.00"); 
+	return ret;
+}
+
+int pathsetter() { 
+	int ret = 0;
+	ret = setpath(path); 
+	return ret;
+}
+
+int activator() { 
+	int ret = 0;
+	ret = activate(SCE_USBSTOR_VSTOR_TYPE_FAT);
+	return ret;
+}
+
+int mtpstarter() { 
+	int ret = 0;
+	ret = mtpstart(1); 
+	return ret;
+}
+
 int em_iofix(void *func) {
 	int ret, state = 0;
 
@@ -128,18 +152,18 @@ void StartUsb() {
   	ksceDebugPrintf("exfat and image path limit patches = %x %x %x\n", hooks[0], hooks[1], hooks[2]);
 
   	if(ksceUdcdStopCurrentInternal(2) == 0) { ksceDebugPrintf("cleared USB bus 2\n"); }
-  	if(em_iofix(setname("\"PS Vita\" MC", "1.00")) == 0) { ksceDebugPrintf("name set\n"); }
-  	if(em_iofix(setpath(path)) == 0) { ksceDebugPrintf("path set\n"); }
-		active = 1;
-		if(activate(SCE_USBSTOR_VSTOR_TYPE_FAT) == 0) { ksceDebugPrintf("activated mount\n"); }
+  	ksceDebugPrintf("NAME: %x\n", em_iofix(namesetter));
+  	ksceDebugPrintf("PATH: %x\n", em_iofix(pathsetter));
+	ksceDebugPrintf("ACTI: %x\n", em_iofix(activator));
+	active = 1;
 	} else { ksceDebugPrintf("already activated\n"); }
 }
 
 void StopUsb() {
 	if(active == 1) {
 		active = 0;
-		if(em_iofix(stop) == 0) { ksceDebugPrintf("stopped mount\n"); }
-		if(em_iofix(mtpstart(1)) == 0) { ksceDebugPrintf("restarted MTP\n"); }
+		ksceDebugPrintf("STOP: %x\n", em_iofix(stop));
+		ksceDebugPrintf("START: %x\n", em_iofix(mtpstarter));
 	} else { ksceDebugPrintf("already stopped\n"); }
   	if (hooks[2] >= 0) { taiHookReleaseForKernel(hooks[2], ksceIoReadRef); }
 	if (hooks[1] >= 0) { taiHookReleaseForKernel(hooks[1], ksceIoOpenRef); }
@@ -173,14 +197,14 @@ int module_start(SceSize argc, const void *args) {
   	return SCE_KERNEL_START_SUCCESS;
   }
   	ksceDebugPrintf("vstor loaded\n");
-  	module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x14455C20, &setname);
-  	module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x8C9F93AB, &setpath);
-  	module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0xB606F1AF, &activate);
-  	module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x0FD67059, &stop);
-  	module_get_export_func(KERNEL_PID, "SceMtpIfDriver", 0x5EFA4138, 0xC5327CAC, &mtpstart);
+  	int rname = module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x14455C20, &setname);
+  	int rpath = module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x8C9F93AB, &setpath);
+  	int racti = module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0xB606F1AF, &activate);
+  	int rstop = module_get_export_func(KERNEL_PID, "SceUsbstorVStorDriver", 0x17F294B9, 0x0FD67059, &stop);
+  	int rmtps = module_get_export_func(KERNEL_PID, "SceMtpIfDriver", 0x5EFA4138, 0xC5327CAC, &mtpstart);
 
-  	ksceDebugPrintf("vstor hooks: %x %x %x %x\n", &setname, &setpath, &activate, &stop);
-  	ksceDebugPrintf("mtp hook: %x\n", &mtpstart);
+  	ksceDebugPrintf("vstor hooks returns: %d %d %d %d\n", rname, rpath, racti, rstop);
+  	ksceDebugPrintf("mtp hook returns: %d\n", rmtps);
 
 	unsigned int fb_size = ALIGN(4 * SCREEN_PITCH * SCREEN_H, 256 * 1024);
 
