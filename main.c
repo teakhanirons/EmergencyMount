@@ -179,7 +179,7 @@ void StopUsb() {
 		active = 0;
 		ksceDebugPrintf("STOP: %x\n", em_iofix(stop));
 	} else { ksceDebugPrintf("usbstorvstor already stopped\n"); }
-	ksceDebugPrintf("clear USB bus 2: %s\n", ksceUdcdStopCurrentInternal(2));
+	ksceDebugPrintf("clear USB bus 2: %d\n", ksceUdcdStopCurrentInternal(2));
   	if (hooks[2] >= 0) { taiHookReleaseForKernel(hooks[2], ksceIoReadRef); }
 	if (hooks[1] >= 0) { taiHookReleaseForKernel(hooks[1], ksceIoOpenRef); }
   	if (hooks[0] >= 0) { taiInjectReleaseForKernel(hooks[0]); }
