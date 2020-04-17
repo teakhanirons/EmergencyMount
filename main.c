@@ -19,7 +19,6 @@
 #include <psp2kern/kernel/threadmgr.h> 
 
 tai_module_info_t vstorinfo;
-tai_module_info_t mtpinfo;
 
 static SceUID fb_uid = -1;
 static SceUID hooks[3];
@@ -32,7 +31,7 @@ SceCtrlData ctrl_peek, ctrl_press;
 void *fb_addr = NULL;
 char *path = NULL;
 char *folder = NULL;
-char menu[5][20] = {"Mount SD2Vita", "Mount Memory Card", "Mount PSVSD / USB", "Mount ur0:", "Reboot"};
+char menu[6][20] = {"Mount SD2Vita", "Mount Memory Card", "Mount PSVSD / USB", "Mount ur0:", "Reboot", "Exit"};
 int menusize;
 static int first = 1;
 int select = 1;
@@ -49,7 +48,6 @@ int (*setname)(const char *name, const char *version);
 int (*setpath)(const char *path);
 int (*activate)(SceUsbstorVstorType type);
 int (*stop)(void);
-int (*mtpstart)(int flags);
 
 int namesetter() { 
 	int ret = 0;
@@ -66,12 +64,6 @@ int pathsetter() {
 int activator() { 
 	int ret = 0;
 	ret = activate(SCE_USBSTOR_VSTOR_TYPE_FAT);
-	return ret;
-}
-
-int mtpstarter() { 
-	int ret = 0;
-	ret = mtpstart(1); 
 	return ret;
 }
 
@@ -175,7 +167,6 @@ void StartUsb() {
   	hooks[2] = taiHookFunctionImportForKernel(KERNEL_PID, &ksceIoReadRef, "SceUsbstorVStorDriver", 0x40FD29C7, 0xE17EFC03, ksceIoReadPatched);
   	ksceDebugPrintf("exfat and image path limit patches = %x %x %x\n", hooks[0], hooks[1], hooks[2]);
 
-  	if(ksceUdcdStopCurrentInternal(2) == 0) { ksceDebugPrintf("cleared USB bus 2\n"); }
   	ksceDebugPrintf("NAME: %x\n", em_iofix(namesetter));
   	ksceDebugPrintf("PATH: %x\n", em_iofix(pathsetter));
 	ksceDebugPrintf("ACTI: %x\n", em_iofix(activator));
@@ -187,8 +178,8 @@ void StopUsb() {
 	if(active == 1) {
 		active = 0;
 		ksceDebugPrintf("STOP: %x\n", em_iofix(stop));
-		ksceDebugPrintf("START: %x\n", em_iofix(mtpstarter));
-	} else { ksceDebugPrintf("already stopped\n"); }
+	} else { ksceDebugPrintf("usbstorvstor already stopped\n"); }
+	ksceDebugPrintf("clear USB bus 2: %s\n", ksceUdcdStopCurrentInternal(2));
   	if (hooks[2] >= 0) { taiHookReleaseForKernel(hooks[2], ksceIoReadRef); }
 	if (hooks[1] >= 0) { taiHookReleaseForKernel(hooks[1], ksceIoOpenRef); }
   	if (hooks[0] >= 0) { taiInjectReleaseForKernel(hooks[0]); }
@@ -223,29 +214,20 @@ if(!PSTV) {
 	ksceDebugPrintf("menu size: %d\n", menusize);
 
   	vstorinfo.size = sizeof(tai_module_info_t);
-  	mtpinfo.size = sizeof(tai_module_info_t);
 
   if(taiGetModuleInfoForKernel(KERNEL_PID, "SceUsbstorVStorDriver", &vstorinfo) < 0) {
   	ksceDebugPrintf("vstor not loaded\n");
   	return SCE_KERNEL_START_SUCCESS;
   }
   ksceDebugPrintf("vstor loaded\n");
-
-  if(taiGetModuleInfoForKernel(KERNEL_PID, "SceMtpIfDriver", &mtpinfo) < 0) {
-  	ksceDebugPrintf("mtp not loaded\n");
-  	return SCE_KERNEL_START_SUCCESS;
-  }
-  ksceDebugPrintf("mtp loaded\n");
   	
   	int rname = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x16b8 | 1, &setname);
   	int rpath = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x16d8 | 1, &setpath);
   	int racti = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x1710 | 1, &activate);
   	int rstop = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x1858 | 1, &stop);
-  	int rmtps = module_get_offset(KERNEL_PID, mtpinfo.modid, 0, 0x6cc | 1, &mtpstart);
 
   	ksceDebugPrintf("vstor hooks returns: %x %x %x %x\n", rname, rpath, racti, rstop);
-  	ksceDebugPrintf("mtp hook returns: %x\n", rmtps);
-}
+} else { ksceDebugPrintf("I'M A PSTV\n"); }
 	unsigned int fb_size = ALIGN(4 * SCREEN_PITCH * SCREEN_H, 256 * 1024);
 
 	fb_uid = ksceKernelAllocMemBlock("fb", 0x40404006 , fb_size, NULL);
@@ -317,11 +299,15 @@ if(!PSTV) {
 						ksceDebugPrintf("---\n");
 						continue; 
 						}
-				} else if(select == 5) { // exit
+				} else if(select == 5) { // reboot - kind of broken, sometimes doesnt reboot only shutdown
 					StopUsb();
 					ksceDebugPrintf("---\n");
 					kscePowerRequestColdReset();
 					ksceKernelDelayThread(5*1000*1000); //fallback
+					break;
+				} else if(select == 6) { // exit
+					StopUsb();
+					ksceDebugPrintf("---\n");
 					break;
 				}
 				StopUsb();
