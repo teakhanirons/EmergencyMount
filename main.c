@@ -156,7 +156,7 @@ void drawScreen() {
 		blit_stringf(20, 60, "------------------------------");
 		blit_stringf(320, select * 20 + 60, "<");
 		for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20) + 60, menu[i]); }
-		for(int i = 0; i < waifusize; i++) { blit_stringf(400, ((i+1) * 20) + 60, rikka[i]); }
+		for(int i = 0; i < waifusize; i++) { blit_stringf(400, ((i + 1) * 20) + 60, rikka[i]); }
 	}
 }
 
