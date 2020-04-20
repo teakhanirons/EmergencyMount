@@ -151,8 +151,10 @@ void drawScreen() {
 		blit_stringf(20, 40, "Exiting now.");
 		ksceKernelDelayThread(5*1000*1000);
 	} else {
-		blit_stringf(320, select * 20, "<");
-		for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20), menu[i]); }
+		blit_stringf(320, select * 20 + 40, "<");
+		blit_stringf(20, 20, "RecoveryMenu by Team CBPS");
+		blit_stringf(20, 40, "=========================");
+		for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20) + 40, menu[i]); }
 		for(int i = 0; i < waifusize; i++) { blit_stringf(400, ((i+1) * 20), rikka[i]); }
 	}
 }
