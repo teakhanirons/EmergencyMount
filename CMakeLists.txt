@@ -21,14 +21,20 @@ link_directories(
 
 add_executable(${PROJECT_NAME}
 	main.c
+	main.h
+	rikka.c
+	rikka.h
 	blit/blit.c
 	blit/font.c
 )
 
 target_link_libraries(${PROJECT_NAME}
 k
+		SceCpuForDriver_stub 
+		SceSblAIMgrForDriver_stub 
 		SceUdcdForDriver_stub
 		SceAppMgrForDriver_stub
+		SceKernelSuspendForDriver_stub
         SceSysmemForDriver_stub
 		SceProcessmgrForKernel_stub
         SceThreadmgrForDriver_stub

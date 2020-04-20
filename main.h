@@ -1,0 +1,1 @@
+int em_iofix_threader(void *func);

@@ -15,8 +15,11 @@
 #include <psp2kern/sblaimgr.h> 
 #include <psp2kern/kernel/cpu.h> 
 #include <psp2kern/kernel/sysmem.h> 
+#include <psp2kern/kernel/suspend.h>
 #include <psp2kern/kernel/modulemgr.h> 
 #include <psp2kern/kernel/threadmgr.h> 
+#include "main.h"
+#include "rikka.h"
 
 tai_module_info_t vstorinfo;
 
@@ -31,8 +34,9 @@ SceCtrlData ctrl_peek, ctrl_press;
 void *fb_addr = NULL;
 char *path = NULL;
 char *folder = NULL;
-char menu[6][20] = {"Mount SD2Vita", "Mount Memory Card", "Mount PSVSD / USB", "Mount ur0:", "Reboot", "Exit"};
+char menu[7][20] = {"Mount SD2Vita", "Mount Memory Card", "Mount PSVSD / USB", "Mount ur0:", "Reboot", "Shutdown", "Exit"};
 int menusize;
+int waifusize;
 static int first = 1;
 int select = 1;
 int active = 0;
@@ -149,6 +153,7 @@ void drawScreen() {
 	} else {
 		blit_stringf(320, select * 20, "<");
 		for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20), menu[i]); }
+		for(int i = 0; i < waifusize; i++) { blit_stringf(400, ((i+1) * 20), rikka[i]); }
 	}
 }
 
@@ -212,7 +217,9 @@ int module_start(SceSize argc, const void *args) {
 	PSTV = ksceSblAimgrIsGenuineDolce();
 if(!PSTV) {
 	menusize = sizeof(menu) / sizeof(menu[0]);
-	ksceDebugPrintf("menu size: %d\n", menusize);
+	ksceDebugPrintf("menu size: %d\n", menusize);	
+	waifusize = sizeof(rikka) / sizeof(rikka[0]);
+	ksceDebugPrintf("waifu size: %d\n", waifusize);
 
   	vstorinfo.size = sizeof(tai_module_info_t);
 
@@ -251,6 +258,7 @@ if(!PSTV) {
 	drawScreen();
 
 	while(!PSTV) {
+		ksceKernelPowerTick(SCE_KERNEL_POWER_TICK_DEFAULT);
 		ctrl_press = ctrl_peek;
 		ksceCtrlPeekBufferPositive(0, &ctrl_peek, 1);
 		ctrl_press.buttons = ctrl_peek.buttons & ~ctrl_press.buttons;
@@ -305,8 +313,12 @@ if(!PSTV) {
 					ksceDebugPrintf("---\n");
 					kscePowerRequestColdReset();
 					ksceKernelDelayThread(5*1000*1000); //fallback
-					break;
-				} else if(select == 6) { // exit
+				} else if(select == 6) { // shutdown - may be broken?
+					StopUsb();
+					ksceDebugPrintf("---\n");
+					kscePowerRequestStandby();
+					ksceKernelDelayThread(5*1000*1000); //fallback
+				} else if(select == 7) { // exit
 					StopUsb();
 					ksceDebugPrintf("---\n");
 					break;
