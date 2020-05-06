@@ -38,7 +38,7 @@ k
         SceSysmemForDriver_stub
 		SceProcessmgrForKernel_stub
         SceThreadmgrForDriver_stub
-        SceSysclibForDriver_stub
+
         SceIofilemgrForDriver_stub
         SceUsbstorVStorDriver_stub
         SceCpuForDriver_stub
