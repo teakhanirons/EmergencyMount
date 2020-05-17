@@ -141,11 +141,8 @@ int sync() {
 }
 
 void drawScreen() {
-	for (int i = 0; i < 544; i++) {
-		for (int j = 0; j < 960; j++) {
-			((unsigned int *)fb_addr)[j + i * SCREEN_PITCH] = 0xFF000000;
-		}
-	}
+	memset(fb_addr, 0x00, SCREEN_PITCH * SCREEN_H * 4);
+	ksceKernelCpuDcacheAndL2WritebackInvalidateRange(fb_addr, SCREEN_PITCH * SCREEN_H * 4);
 	if(PSTV) { 
 		blit_stringf(20, 20, "EmergencyMount is only for PS Vita systems.");
 		blit_stringf(20, 40, "Exiting now.");
@@ -220,7 +217,7 @@ int module_start(SceSize argc, const void *args) {
 	PSTV = ksceSblAimgrIsGenuineDolce();
 if(!PSTV) {
 	menusize = sizeof(menu) / sizeof(menu[0]);
-	ksceDebugPrintf("menu size: %d\n", menusize);	
+	ksceDebugPrintf("menu size: %d\n", menusize);		
 	waifusize = sizeof(rikka) / sizeof(rikka[0]);
 	ksceDebugPrintf("waifu size: %d\n", waifusize);
 
@@ -258,6 +255,7 @@ if(!PSTV) {
 	ksceDisplaySetFrameBuf(&fb, 1);
 	blit_set_frame_buf(&fb);
 	blit_set_color(0x00FFFFFF, 0xFF000000);
+
 	drawScreen();
 
 	while(!PSTV) {
