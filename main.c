@@ -143,9 +143,9 @@ int sync() {
 
 void drawScreen() {
 	//ksceDmacMemset(fb_addr, 0x00, SCREEN_PITCH * SCREEN_H * 4);
-		blit_set_color(0x00000000, 0xFF000000);
+		blit_set_color(0x00000000, 0x00000000);
 		for(int i = 1; i <= menusize; i++) blit_stringf((strlen(menu[i - 1]) + 2) * 16, i * 20 + 60, "<");
-		blit_set_color(0x00ffffff, 0xFF000000);
+		blit_set_color(0x00ffffff, 0x00000000);
 		blit_stringf((strlen(menu[select - 1]) + 2) * 16, select * 20 + 60, "<");
 }
 
