@@ -279,7 +279,8 @@ int module_start(SceSize argc, const void *args) {
 
 	ksceDisplaySetFrameBuf(&fb, 1);
 	blit_set_frame_buf(&fb);
-
+	
+	blit_set_color(0x00ffffff, 0x00000000);
 	blit_stringf(20, 20, "EmergencyMount by teakhanirons");
 	blit_stringf(20, 40, "  Rikka Project by Team CBPS  ");
 	blit_stringf(20, 60, "------------------------------");
