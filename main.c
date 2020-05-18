@@ -41,7 +41,6 @@ int waifusize;
 static int first = 1;
 int select = 1;
 int active = 0;
-int PSTV = 0;
 
 #define ALIGN(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
 
@@ -254,7 +253,7 @@ int module_start(SceSize argc, const void *args) {
 
 	drawScreen();
 
-	while(!PSTV) {
+	while(1) {
 		ksceKernelPowerTick(SCE_KERNEL_POWER_TICK_DEFAULT);
 		ctrl_press = ctrl_peek;
 		ksceCtrlPeekBufferPositive(0, &ctrl_peek, 1);
