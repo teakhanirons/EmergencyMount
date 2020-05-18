@@ -142,19 +142,11 @@ int sync() {
 }
 
 void drawScreen() {
-	ksceDmacMemset(fb_addr, 0x00, SCREEN_PITCH * SCREEN_H * 4);
-	if(PSTV) { 
-		blit_stringf(20, 20, "EmergencyMount is only for PS Vita systems.");
-		blit_stringf(20, 40, "Exiting now.");
-		ksceKernelDelayThread(5*1000*1000);
-	} else {
-		blit_stringf(20, 20, "EmergencyMount by teakhanirons");
-		blit_stringf(20, 40, "  Rikka Project by Team CBPS  ");
-		blit_stringf(20, 60, "------------------------------");
+	//ksceDmacMemset(fb_addr, 0x00, SCREEN_PITCH * SCREEN_H * 4);
+		blit_set_color(0x00000000, 0xFF000000);
+		for(int i = 1; i <= menusize; i++) blit_stringf((strlen(menu[i - 1]) + 2) * 16, i * 20 + 60, "<");
+		blit_set_color(0x00ffffff, 0xFF000000);
 		blit_stringf((strlen(menu[select - 1]) + 2) * 16, select * 20 + 60, "<");
-		for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20) + 60, menu[i]); }
-		for(int i = 0; i < waifusize; i++) { blit_stringf(400, ((i + 1) * 20) + 60, rikka[i]); }
-	}
 }
 
 void StartUsb() {
@@ -211,11 +203,10 @@ int triaCheck() {
 
 void _start() __attribute__ ((weak, alias ("module_start")));
 int module_start(SceSize argc, const void *args) {
+	if(ksceSblAimgrIsGenuineDolce()) return SCE_KERNEL_START_SUCCESS;
 	ksceDebugPrintf("\nEmergencyMount by Team CBPS\n----------\n");
-
 	if(triaCheck() == 0) return SCE_KERNEL_START_SUCCESS;
-	PSTV = ksceSblAimgrIsGenuineDolce();
-if(!PSTV) {
+
 	menusize = sizeof(menu) / sizeof(menu[0]);
 	ksceDebugPrintf("menu size: %d\n", menusize);		
 	waifusize = sizeof(rikka) / sizeof(rikka[0]);
@@ -235,7 +226,7 @@ if(!PSTV) {
   	int rstop = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x1858 | 1, &stop);
 
   	ksceDebugPrintf("vstor hooks returns: %x %x %x %x\n", rname, rpath, racti, rstop);
-} else { ksceDebugPrintf("I'M A PSTV\n"); }
+
 	unsigned int fb_size = ALIGN(4 * SCREEN_PITCH * SCREEN_H, 256 * 1024);
 
 	fb_uid = ksceKernelAllocMemBlock("fb", 0x40404006 , fb_size, NULL);
@@ -254,6 +245,12 @@ if(!PSTV) {
 
 	ksceDisplaySetFrameBuf(&fb, 1);
 	blit_set_frame_buf(&fb);
+
+	blit_stringf(20, 20, "EmergencyMount by teakhanirons");
+	blit_stringf(20, 40, "  Rikka Project by Team CBPS  ");
+	blit_stringf(20, 60, "------------------------------");
+	for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20) + 60, menu[i]); }
+	for(int i = 0; i < waifusize; i++) { blit_stringf(400, ((i + 1) * 20) + 60, rikka[i]); }
 
 	drawScreen();
 
