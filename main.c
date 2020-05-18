@@ -20,7 +20,6 @@
 #include <psp2kern/kernel/threadmgr.h> 
 #include <psp2kern/kernel/dmac.h> 
 #include "main.h"
-#include "rikka.h"
 
 tai_module_info_t vstorinfo;
 
@@ -33,18 +32,20 @@ static tai_hook_ref_t ksceIoReadRef;
 SceCtrlData ctrl_peek, ctrl_press;
 
 void *fb_addr = NULL;
+void *bmp_addr = NULL;
 char *path = NULL;
 char *folder = NULL;
+int stat_ret, rgbuid, bgfd;
 char menu[7][20] = {"Mount SD2Vita", "Mount Memory Card", "Mount PSVSD / USB", "Mount ur0:", "Reboot", "Shutdown", "Exit"};
 int menusize;
-int waifusize;
 static int first = 1;
 int select = 1;
 int active = 0;
+int hasbg;
 
 #define ALIGN(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
 
-#define SCREEN_PITCH 1024
+#define SCREEN_PITCH 960
 #define SCREEN_W 960
 #define SCREEN_H 544
 
@@ -208,8 +209,6 @@ int module_start(SceSize argc, const void *args) {
 
 	menusize = sizeof(menu) / sizeof(menu[0]);
 	ksceDebugPrintf("menu size: %d\n", menusize);		
-	waifusize = sizeof(rikka) / sizeof(rikka[0]);
-	ksceDebugPrintf("waifu size: %d\n", waifusize);
 
   	vstorinfo.size = sizeof(tai_module_info_t);
 
@@ -218,6 +217,11 @@ int module_start(SceSize argc, const void *args) {
   	return SCE_KERNEL_START_SUCCESS;
   }
   ksceDebugPrintf("vstor loaded\n");
+
+  	SceIoStat stat;
+	stat_ret = ksceIoGetstat("ur0:tai/EmergencyMount.bmp", &stat);
+	if((stat_ret < 0) || ((uint32_t)stat.st_size != 0x17E836) || (SCE_SO_ISDIR(stat.st_mode) != 0)) hasbg = 0;
+	else hasbg = 1;
   	
   	int rname = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x16b8 | 1, &setname);
   	int rpath = module_get_offset(KERNEL_PID, vstorinfo.modid, 0, 0x16d8 | 1, &setpath);
@@ -232,13 +236,44 @@ int module_start(SceSize argc, const void *args) {
 
 	ksceKernelGetMemBlockBase(fb_uid, &fb_addr);
 
+	if(hasbg) {
+		if((rgbuid = ksceKernelAllocMemBlock("rgb", 0x1050D006, 0x200000, NULL)) < 0) {
+			hasbg = 0;
+			ksceDebugPrintf("background memory allocation failed\n");
+		} else ksceDebugPrintf("rgb okke!\n");
+	}
+
+	if(hasbg) {
+		ksceKernelGetMemBlockBase(rgbuid, (void**)&bmp_addr);
+		bgfd = ksceIoOpen("ur0:tai/EmergencyMount.bmp", SCE_O_RDONLY, 0);
+		ksceIoLseek(bgfd, 54,	SCE_SEEK_SET); // 54 byte bmp header
+		ksceIoRead(bgfd, bmp_addr, 0x17E7E2); // 0x17E836 - 54 = 0x17E7E2
+		ksceIoClose(bgfd);
+	    ksceDebugPrintf("bmp read okke!\n");
+
+	    for(int i = 0; i < 544; i++) {
+    		for(int j = 0; j < 960; j++) {
+    			// A B G R
+    	    	*(uint32_t *)(fb_addr + (((544 - i) * 960) + j) * 4) =
+        	    	((((char *)bmp_addr)[((i * 960) + j) * 3 + 2]) <<  0) |
+    	    	    ((((char *)bmp_addr)[((i * 960) + j) * 3 + 1]) <<  8) |
+        	    	((((char *)bmp_addr)[((i * 960) + j) * 3 + 0]) << 16) |
+    	        		0xFF000000;
+			}
+    	}
+
+	ksceDebugPrintf("background okke!\n");
+
+	ksceKernelFreeMemBlock(rgbuid);
+	}
+
 	drawScreen();
 
 	SceDisplayFrameBuf fb;
 	fb.size        = sizeof(fb);
 	fb.base        = fb_addr;
 	fb.pitch       = SCREEN_PITCH;
-	fb.pixelformat = SCE_DISPLAY_PIXELFORMAT_A8B8G8R8;
+	fb.pixelformat = 0;
 	fb.width       = SCREEN_W;
 	fb.height      = SCREEN_H;
 
@@ -249,7 +284,6 @@ int module_start(SceSize argc, const void *args) {
 	blit_stringf(20, 40, "  Rikka Project by Team CBPS  ");
 	blit_stringf(20, 60, "------------------------------");
 	for(int i = 0; i < menusize; i++) { blit_stringf(20, ((i + 1) * 20) + 60, menu[i]); }
-	for(int i = 0; i < waifusize; i++) { blit_stringf(400, ((i + 1) * 20) + 60, rikka[i]); }
 
 	drawScreen();
 

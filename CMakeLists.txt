@@ -22,8 +22,6 @@ link_directories(
 add_executable(${PROJECT_NAME}
 	main.c
 	main.h
-	rikka.c
-	rikka.h
 	blit/blit.c
 	blit/font.c
 )
