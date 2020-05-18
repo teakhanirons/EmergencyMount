@@ -34,6 +34,7 @@ k
 		SceSblAIMgrForDriver_stub 
 		SceUdcdForDriver_stub
 		SceAppMgrForDriver_stub
+		SceDmacmgrForDriver_stub
 		SceKernelSuspendForDriver_stub
         SceSysmemForDriver_stub
 		SceProcessmgrForKernel_stub

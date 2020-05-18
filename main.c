@@ -18,6 +18,7 @@
 #include <psp2kern/kernel/suspend.h>
 #include <psp2kern/kernel/modulemgr.h> 
 #include <psp2kern/kernel/threadmgr.h> 
+#include <psp2kern/kernel/dmac.h> 
 #include "main.h"
 #include "rikka.h"
 
@@ -141,8 +142,7 @@ int sync() {
 }
 
 void drawScreen() {
-	memset(fb_addr, 0x00, SCREEN_PITCH * SCREEN_H * 4);
-	ksceKernelCpuDcacheAndL2WritebackInvalidateRange(fb_addr, SCREEN_PITCH * SCREEN_H * 4);
+	ksceDmacMemset(fb_addr, 0x00, SCREEN_PITCH * SCREEN_H * 4);
 	if(PSTV) { 
 		blit_stringf(20, 20, "EmergencyMount is only for PS Vita systems.");
 		blit_stringf(20, 40, "Exiting now.");
@@ -165,7 +165,7 @@ void StartUsb() {
 		}
   // Remove image path limitation
   	char zero[0x6E];
- 	memset(zero, 0, 0x6E);
+ 	memset(zero, 0, 0x6E); // I can probably use DmacMemset here but I'll leave it as is since 0x6E bytes is small enough
   	hooks[0] = taiInjectDataForKernel(KERNEL_PID, vstorinfo.modid, 0, 0x1738, zero, 0x6E);
 
   // Add patches to support exFAT
@@ -254,7 +254,6 @@ if(!PSTV) {
 
 	ksceDisplaySetFrameBuf(&fb, 1);
 	blit_set_frame_buf(&fb);
-	blit_set_color(0x00FFFFFF, 0xFF000000);
 
 	drawScreen();
 
